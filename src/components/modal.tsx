@@ -6,12 +6,12 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   todo: TodoTypes | null;
-  onSubmit: (text: string, creator: string, id?: number) => void;
+  onSave: (text: string, id?: number) => void; 
 }
 
-export default function Modal({ isOpen, onClose, todo, onSubmit }: ModalProps) {
+
+export default function Modal({ isOpen, onClose, todo, onSave }: ModalProps) {
   const [text, setText] = useState(todo?.text || "");
-  const [creator, setCreator] = useState("DefaultUser");
 
   useEffect(() => {
     if (todo) {
@@ -25,7 +25,7 @@ export default function Modal({ isOpen, onClose, todo, onSubmit }: ModalProps) {
 
   const handleSubmit = () => {
     if (text.trim() !== "") {
-      onSubmit(text, creator, todo?.id);
+      onSave(text, todo?.id); // Pass only text and id
       onClose();
     }
   };
@@ -69,3 +69,4 @@ export default function Modal({ isOpen, onClose, todo, onSubmit }: ModalProps) {
     </div>
   );
 }
+

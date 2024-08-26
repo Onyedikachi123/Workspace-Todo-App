@@ -1,29 +1,45 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken'; 
-import { addUser, getUser } from '../storage'; 
+import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
+import { addUser, getUser } from '../storage'; // Adjust the path as needed
 
 export async function POST(request: Request) {
-  const { name, email, password } = await request.json();
-
-  if (!name || !email || !password) {
-    return NextResponse.json({ error: 'All fields are required.' }, { status: 400 });
-  }
-
-  // Check if user already exists
-  if (getUser(email)) {
-    return NextResponse.json({ error: 'User already exists.' }, { status: 400 });
-  }
-
   try {
-    // Add user to in-memory storage
-    const user = { id: Date.now().toString(), name, email, password };
-    addUser(user);
-    
-    // Generate a JWT token
-    const token = jwt.sign({ id: user.id, name: user.name, email: user.email }, process.env.JWT_SECRET_KEY as string, { expiresIn: '1h' });
+    const { name, email, password } = await request.json();
 
-    return NextResponse.json({ token, user });
+    // Validate the request body
+    if (!name || !email || !password) {
+      return NextResponse.json({ error: 'Name, email, and password are required.' }, { status: 400 });
+    }
+
+    // Check if the user already exists in the storage
+    const existingUser = getUser(email);
+    if (existingUser) {
+      return NextResponse.json({ error: 'User already exists.' }, { status: 409 });
+    }
+
+    // Create a new user object
+    const newUser = {
+      id: uuidv4(), // Generate a unique ID for the user
+      name,
+      email,
+      password, // Reminder: In a real application, passwords should be hashed before storage
+    };
+
+    // Add the new user to the storage
+    addUser(newUser);
+
+    // Generate a JWT token for the new user
+    const token = jwt.sign(
+      { id: newUser.id, name: newUser.name, email: newUser.email },
+      process.env.JWT_SECRET_KEY as string,
+      { expiresIn: '1h' }
+    );
+
+    // Return the token and user information in the response
+    return NextResponse.json({ token, user: newUser });
   } catch (error) {
-    return NextResponse.json({ error: 'Registration failed.' }, { status: 500 });
+    console.error('Error in registration:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

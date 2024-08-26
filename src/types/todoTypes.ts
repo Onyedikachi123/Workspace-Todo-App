@@ -1,7 +1,7 @@
 export interface TodoTypes {
-    text: string;
-    status: boolean;
-    id: number;
-    creator: string;
-    markedBy?: string;
+  id: number;
+  text: string;
+  status: boolean;
+  creator: string;
+  markedBy?: string;
   }

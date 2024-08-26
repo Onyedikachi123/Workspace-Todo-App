@@ -5,40 +5,60 @@ import { useAuthStore } from '../store/useAuthStore';
 import { pusherClient } from "./utils/pusherClient";
 import Modal from "../components/modal";
 import jwt from 'jsonwebtoken';
-import {TodoTypes }  from "../types/todoTypes";
-
-// interface TodoTypes {
-//   text: string;
-//   status: boolean;
-//   id: number;
-//   creator: string;
-//   markedBy?: string;
-// }
+import { TodoTypes } from "../types/todoTypes";
 
 export default function Home() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const token = useAuthStore((state) => state.token || ''); // Provide a fallback value
   const router = useRouter();
-  const [todos, setTodos] = useState<TodoTypes[]>([
-    { id: 1, text: "Buy groceries", status: false, creator: "DefaultUser" },
-    { id: 2, text: "Complete project", status: false, creator: "DefaultUser" },
-    { id: 3, text: "Read a book", status: false, creator: "DefaultUser" },
-    { id: 4, text: "Exercise", status: false, creator: "DefaultUser" },
-  ]);
+  const [todos, setTodos] = useState<TodoTypes[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [currentTodo, setCurrentTodo] = useState<TodoTypes | null>(null);
+  const [username, setUsername] = useState<string>("");
+
+  const fetchTodos = async () => {
+    try {
+      const response = await fetch('/api/todos', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+  
+      const data = await response.json();
+      setTodos(data.todos);
+    } catch (error) {
+      console.error('Error fetching todos:', error);
+    }
+  };
+
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace('/login');
+    } else {
+      const decodedToken: any = jwt.decode(token);
+      setUsername(decodedToken?.username || "Anonymous");
+
+      // Fetch initial todos for the authenticated user
+      fetchTodos();
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, token]);
+
 
   useEffect(() => {
     if (isAuthenticated) {
       const channel = pusherClient.subscribe("todo-channel");
 
       channel.bind("create-todo", (data: TodoTypes) => {
-        setTodos((prevTodos) => [...prevTodos, data]);
+        if (data.creator === username) {
+          setTodos((prevTodos) => [...prevTodos, data]);
+        }
       });
 
       channel.bind("update-todo", (data: TodoTypes) => {
@@ -60,45 +80,32 @@ export default function Home() {
         channel.unsubscribe();
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, username]);
 
-  const handleCreateOrUpdateTodo = async (text: string, creator: string, id?: number) => {
-    if (id) {
-      const updatedTodo = { text, status: false, id, creator };
-      await fetch("/api/pusher", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_PUSHER_AUTH_TOKEN}`,
-        },
-        body: JSON.stringify({
-          channel: "todo-channel",
-          event: "update-todo",
-          data: updatedTodo,
-        }),
-      });
-    } else {
-      const newTodo: TodoTypes = {
-        text,
-        status: false,
-        id: todos.length + 1,
-        creator,
-      };
-
-      await fetch("/api/pusher", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_PUSHER_AUTH_TOKEN}`,
-        },
-        body: JSON.stringify({
-          channel: "todo-channel",
-          event: "create-todo",
-          data: newTodo,
-        }),
-      });
-    }
+  const handleCreateOrUpdateTodo = async (text: string, id?: number) => { // Removed creator parameter
+    const todoData = {
+      text,
+      status: false,
+      id: id || todos.length + 1,
+      creator: username,
+    };
+  
+    const event = id ? "update-todo" : "create-todo";
+  
+    await fetch("/api/pusher", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        channel: "todo-channel",
+        event,
+        data: todoData,
+      }),
+    });
   };
+  
 
   const openUpdateModal = (todo: TodoTypes) => {
     setCurrentTodo(todo);
@@ -106,33 +113,24 @@ export default function Home() {
   };
 
   const handleMarkAsDone = async (id: number) => {
-    const token = process.env.NEXT_PUBLIC_PUSHER_AUTH_TOKEN;
     const updatedTodo = todos.find((todo) => todo.id === id);
 
-    if (updatedTodo && token) {
+    if (updatedTodo) {
       updatedTodo.status = !updatedTodo.status;
+      updatedTodo.markedBy = username;
 
-      try {
-        const decodedToken: any = jwt.decode(token);
-        const markedBy = decodedToken?.username || "Anonymous";
-
-        updatedTodo.markedBy = markedBy;
-
-        await fetch("/api/pusher", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            channel: "todo-channel",
-            event: "update-todo",
-            data: updatedTodo,
-          }),
-        });
-      } catch (error) {
-        console.error("Error marking todo as done:", error);
-      }
+      await fetch("/api/pusher", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          channel: "todo-channel",
+          event: "update-todo",
+          data: updatedTodo,
+        }),
+      });
     }
   };
 
@@ -141,7 +139,7 @@ export default function Home() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_PUSHER_AUTH_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         channel: "todo-channel",
@@ -222,14 +220,14 @@ export default function Home() {
         onClick={() => setShowModal(true)}
         className="fixed bottom-6 right-6 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 transition duration-300"
       >
-        Add Todo
+        +
       </button>
       {showModal && (
         <Modal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
+          onSave={handleCreateOrUpdateTodo}
           todo={currentTodo}
-          onSubmit={handleCreateOrUpdateTodo}
         />
       )}
     </main>
