@@ -15,6 +15,7 @@ export default function Home() {
   const [showModal, setShowModal] = useState(false);
   const [currentTodo, setCurrentTodo] = useState<TodoTypes | null>(null);
   const [username, setUsername] = useState<string>("");
+  const [error, setError] = useState<string | null>(null); 
 
   const fetchTodos = async () => {
     try {
@@ -34,8 +35,10 @@ export default function Home() {
       setTodos(data.todos);
     } catch (error) {
       console.error('Error fetching todos:', error);
+      setError('Failed to fetch todos. Please try again later.');
     }
   };
+  
 
 
   useEffect(() => {
@@ -43,7 +46,7 @@ export default function Home() {
       router.replace('/login');
     } else {
       const decodedToken: any = jwt.decode(token);
-      setUsername(decodedToken?.username || "Anonymous");
+      setUsername(decodedToken?.username);
 
       // Fetch initial todos for the authenticated user
       fetchTodos();
@@ -54,6 +57,11 @@ export default function Home() {
   useEffect(() => {
     if (isAuthenticated) {
       const channel = pusherClient.subscribe("todo-channel");
+
+      const handlePusherError = (error: Error) => {
+        console.error('Pusher error:', error);
+        setError('Real-time updates failed. Please refresh the page.');
+      };
 
       channel.bind("create-todo", (data: TodoTypes) => {
         if (data.creator === username) {
@@ -82,28 +90,33 @@ export default function Home() {
     }
   }, [isAuthenticated, username]);
 
-  const handleCreateOrUpdateTodo = async (text: string, id?: number) => { // Removed creator parameter
+  const handleCreateOrUpdateTodo = async (text: string, id?: number) => {
     const todoData = {
       text,
       status: false,
       id: id || todos.length + 1,
-      creator: username,
+      creator: username, 
     };
-  
+
     const event = id ? "update-todo" : "create-todo";
-  
-    await fetch("/api/pusher", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        channel: "todo-channel",
-        event,
-        data: todoData,
-      }),
-    });
+
+    try {
+      await fetch("/api/pusher", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          channel: "todo-channel",
+          event,
+          data: todoData,
+        }),
+      });
+    } catch (error) {
+      console.error('Error sending todo update:', error);
+      setError('Failed to update todo. Please try again later.');
+    }
   };
   
 
@@ -117,8 +130,31 @@ export default function Home() {
 
     if (updatedTodo) {
       updatedTodo.status = !updatedTodo.status;
-      updatedTodo.markedBy = username;
+      updatedTodo.markedBy = username; 
 
+      try {
+        await fetch("/api/pusher", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            channel: "todo-channel",
+            event: "update-todo",
+            data: updatedTodo,
+          }),
+        });
+      } catch (error) {
+        console.error('Error updating todo status:', error);
+        setError('Failed to update todo status. Please try again later.');
+      }
+    }
+  };
+  
+
+  const deleteTodo = async (id: number) => {
+    try {
       await fetch("/api/pusher", {
         method: "POST",
         headers: {
@@ -127,30 +163,18 @@ export default function Home() {
         },
         body: JSON.stringify({
           channel: "todo-channel",
-          event: "update-todo",
-          data: updatedTodo,
+          event: "delete-todo",
+          data: { id },
         }),
       });
+    } catch (error) {
+      console.error('Error deleting todo:', error);
+      setError('Failed to delete todo. Please try again later.');
     }
   };
 
-  const deleteTodo = async (id: number) => {
-    await fetch("/api/pusher", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        channel: "todo-channel",
-        event: "delete-todo",
-        data: { id },
-      }),
-    });
-  };
-
   if (!isAuthenticated) {
-    return null; // Optionally, you could return a loading spinner here.
+    return null; 
   }
 
   return (

@@ -27,7 +27,7 @@ function Login() {
 
       if (response.ok) {
         const data = await response.json();
-        login(data.token); // Assuming the API returns a token
+        login(data.token); 
         router.push('/');
       } else {
         const errorData = await response.json();

@@ -46,7 +46,7 @@ export const useAuthStore = create<AuthState>(
       login: (token: string) => {
         try {
           const decoded = jwtDecode<User>(token);
-          set({ user: decoded, isAuthenticated: true });
+          set({ user: decoded, isAuthenticated: true, token });
           localStorage.setItem('token', token);
         } catch (error) {
           set({ error: 'Failed to decode token', isAuthenticated: false });

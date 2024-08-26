@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import { addUser, getUser } from '../storage'; // Adjust the path as needed
+import bcrypt from 'bcrypt';
+import { addUser, getUser } from '../storage'; 
+
+// Define the number of salt rounds for bcrypt
+const saltRounds = 10;
 
 export async function POST(request: Request) {
   try {
@@ -18,12 +22,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User already exists.' }, { status: 409 });
     }
 
+    // Hash the password before storing it
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
     // Create a new user object
     const newUser = {
-      id: uuidv4(), // Generate a unique ID for the user
+      id: uuidv4(),
       name,
       email,
-      password, // Reminder: In a real application, passwords should be hashed before storage
+      password: hashedPassword, // Store hashed password
     };
 
     // Add the new user to the storage
@@ -33,10 +40,9 @@ export async function POST(request: Request) {
     const token = jwt.sign(
       { id: newUser.id, name: newUser.name, email: newUser.email },
       process.env.JWT_SECRET_KEY as string,
-      { expiresIn: '1h' }
+      { expiresIn: '24h' }
     );
 
-    // Return the token and user information in the response
     return NextResponse.json({ token, user: newUser });
   } catch (error) {
     console.error('Error in registration:', error);
