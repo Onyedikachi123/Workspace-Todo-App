@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import bcrypt from 'bcrypt';
-import { addUser, getUser } from '../storage'; 
+import bcrypt from 'bcryptjs'; // Use bcryptjs for password hashing
+import { addUser, getUser } from '../storage';
 
 // Define the number of salt rounds for bcrypt
 const saltRounds = 10;
@@ -39,13 +39,19 @@ export async function POST(request: Request) {
     // Generate a JWT token for the new user
     const token = jwt.sign(
       { id: newUser.id, name: newUser.name, email: newUser.email },
-      process.env.JWT_SECRET_KEY as string,
+      process.env.JWT_SECRET_KEY as string,  // Ensure this is set in your .env file
       { expiresIn: '24h' }
     );
 
     return NextResponse.json({ token, user: newUser });
   } catch (error) {
     console.error('Error in registration:', error);
+
+    // Differentiate between server errors and other issues
+    if (error instanceof jwt.JsonWebTokenError) {
+      return NextResponse.json({ error: 'JWT Token creation failed' }, { status: 500 });
+    }
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

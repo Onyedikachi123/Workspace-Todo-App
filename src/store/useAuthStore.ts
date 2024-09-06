@@ -1,24 +1,11 @@
 import { create } from 'zustand';
 import { persist, PersistOptions } from 'zustand/middleware';
-import { jwtDecode } from 'jwt-decode';
+import {jwtDecode} from 'jwt-decode'; // Import jwt-decode correctly
 
 interface User {
   id: string;
   name: string;
   email: string;
-  password: string
-}
-
-const users: { [key: string]: User } = {};
-
-// Add a user to the storage
-export function addUser(user: User) {
-  users[user.email] = user;
-}
-
-// Retrieve a user from the storage by email
-export function getUser(email: string): User | undefined {
-  return users[email];
 }
 
 interface AuthState {
@@ -32,34 +19,44 @@ interface AuthState {
 }
 
 type AuthPersist = (
-  config: (set: any) => AuthState,
+  config: (set: any, get: any) => AuthState,
   options: PersistOptions<AuthState>
 ) => (set: any, get: any, api: any) => AuthState;
 
 export const useAuthStore = create<AuthState>(
   (persist as AuthPersist)(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       token: null,
       error: null,
       login: (token: string) => {
         try {
-          const decoded = jwtDecode<User>(token);
-          set({ user: decoded, isAuthenticated: true, token });
-          localStorage.setItem('token', token);
+          const decodedUser = jwtDecode<User>(token); // Ensure token is decoded
+          set({ user: decodedUser, isAuthenticated: true, token });
         } catch (error) {
           set({ error: 'Failed to decode token', isAuthenticated: false });
         }
       },
       logout: () => {
-        set({ user: null, isAuthenticated: false });
-        localStorage.removeItem('token');
+        set({ user: null, isAuthenticated: false, token: null });
+        localStorage.removeItem('auth-store');  // Clear auth store on logout
       },
       setError: (error: string | null) => {
         set({ error });
       },
     }),
-    { name: 'auth-store' }
+    {
+      name: 'auth-store',
+      getStorage: () => localStorage, // Persist state in localStorage
+    }
   )
 );
+
+// Only run this block on the client-side
+if (typeof window !== 'undefined') {
+  const token = localStorage.getItem('token');
+  if (token) {
+    useAuthStore.getState().login(token);
+  }
+}

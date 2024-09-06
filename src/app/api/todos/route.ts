@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserTodos, initializeDefaultTodos } from '../storage'; // Import initialization function
-import jwt, { JwtPayload } from 'jsonwebtoken'; // Import jsonwebtoken
+import { getUserTodos, initializeDefaultTodos } from '../storage'; 
+import jwt, { JwtPayload } from 'jsonwebtoken'; 
 
 interface Todo {
   id: number;

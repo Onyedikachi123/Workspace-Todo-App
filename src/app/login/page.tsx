@@ -6,7 +6,6 @@ import { useAuthStore } from '../../store/useAuthStore';
 import Link from 'next/link';
 import Head from 'next/head';
 
-
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,10 +27,10 @@ function Login() {
       if (response.ok) {
         const data = await response.json();
         login(data.token); 
-        router.push('/');
+        router.push('/'); // Redirect to home after successful login
       } else {
         const errorData = await response.json();
-        setError(errorData.message || 'Invalid credentials. Please try again.');
+        setError(errorData.error || 'Invalid credentials. Please try again.');
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
@@ -69,7 +68,7 @@ function Login() {
               Login
             </button>
             <p className="text-sm text-center text-gray-600">
-              Dont have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/register" className="text-blue-500 hover:underline">
                 Register
               </Link>

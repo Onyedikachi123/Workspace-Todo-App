@@ -1,49 +1,53 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '../store/useAuthStore';
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "../store/useAuthStore";
 import { pusherClient } from "./utils/pusherClient";
 import Modal from "../components/modal";
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 import { TodoTypes } from "../types/todoTypes";
 
 export default function Home() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const token = useAuthStore((state) => state.token || ''); // Provide a fallback value
+  const token = useAuthStore((state) => state.token || ""); // Provide a fallback value
   const router = useRouter();
   const [todos, setTodos] = useState<TodoTypes[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [currentTodo, setCurrentTodo] = useState<TodoTypes | null>(null);
   const [username, setUsername] = useState<string>("");
-  const [error, setError] = useState<string | null>(null); 
+  const [error, setError] = useState<string | null>(null);
+  const logout = useAuthStore((state) => state.logout);
 
-  const fetchTodos = async () => {
+  const handleLogout = () => {
+    logout(); // Clear authentication state
+    router.push("/login"); // Redirect to login page after logging out
+  };
+
+  const fetchTodos = useCallback(async () => {
     try {
-      const response = await fetch('/api/todos', {
-        method: 'GET',
+      const response = await fetch("/api/todos", {
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       });
-  
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-  
+
       const data = await response.json();
       setTodos(data.todos);
     } catch (error) {
-      console.error('Error fetching todos:', error);
-      setError('Failed to fetch todos. Please try again later.');
+      console.error("Error fetching todos:", error);
+      setError("Failed to fetch todos. Please try again later.");
     }
-  };
-  
-
+  }, [token]);
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.replace('/login');
+      router.replace("/login");
     } else {
       const decodedToken: any = jwt.decode(token);
       setUsername(decodedToken?.username);
@@ -53,14 +57,13 @@ export default function Home() {
     }
   }, [isAuthenticated, router, token]);
 
-
   useEffect(() => {
     if (isAuthenticated) {
       const channel = pusherClient.subscribe("todo-channel");
 
       const handlePusherError = (error: Error) => {
-        console.error('Pusher error:', error);
-        setError('Real-time updates failed. Please refresh the page.');
+        console.error("Pusher error:", error);
+        setError("Real-time updates failed. Please refresh the page.");
       };
 
       channel.bind("create-todo", (data: TodoTypes) => {
@@ -73,14 +76,21 @@ export default function Home() {
         setTodos((prevTodos) =>
           prevTodos.map((todo) =>
             todo.id === data.id
-              ? { ...todo, text: data.text, status: data.status, markedBy: data.markedBy }
+              ? {
+                  ...todo,
+                  text: data.text,
+                  status: data.status,
+                  markedBy: data.markedBy,
+                }
               : todo
           )
         );
       });
 
       channel.bind("delete-todo", (data: { id: number }) => {
-        setTodos((prevTodos) => prevTodos.filter((todo) => todo.id !== data.id));
+        setTodos((prevTodos) =>
+          prevTodos.filter((todo) => todo.id !== data.id)
+        );
       });
 
       return () => {
@@ -95,7 +105,7 @@ export default function Home() {
       text,
       status: false,
       id: id || todos.length + 1,
-      creator: username, 
+      creator: username,
     };
 
     const event = id ? "update-todo" : "create-todo";
@@ -114,11 +124,10 @@ export default function Home() {
         }),
       });
     } catch (error) {
-      console.error('Error sending todo update:', error);
-      setError('Failed to update todo. Please try again later.');
+      console.error("Error sending todo update:", error);
+      setError("Failed to update todo. Please try again later.");
     }
   };
-  
 
   const openUpdateModal = (todo: TodoTypes) => {
     setCurrentTodo(todo);
@@ -130,7 +139,7 @@ export default function Home() {
 
     if (updatedTodo) {
       updatedTodo.status = !updatedTodo.status;
-      updatedTodo.markedBy = username; 
+      updatedTodo.markedBy = username;
 
       try {
         await fetch("/api/pusher", {
@@ -146,12 +155,11 @@ export default function Home() {
           }),
         });
       } catch (error) {
-        console.error('Error updating todo status:', error);
-        setError('Failed to update todo status. Please try again later.');
+        console.error("Error updating todo status:", error);
+        setError("Failed to update todo status. Please try again later.");
       }
     }
   };
-  
 
   const deleteTodo = async (id: number) => {
     try {
@@ -168,17 +176,20 @@ export default function Home() {
         }),
       });
     } catch (error) {
-      console.error('Error deleting todo:', error);
-      setError('Failed to delete todo. Please try again later.');
+      console.error("Error deleting todo:", error);
+      setError("Failed to delete todo. Please try again later.");
     }
   };
 
   if (!isAuthenticated) {
-    return null; 
+    return null;
   }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
+      
+    
+      
       <h1 className="text-3xl font-bold text-center text-gray-800">Todo App</h1>
       <div className="mt-6 w-full max-w-4xl mx-auto">
         {todos.length > 0 ? (
@@ -189,9 +200,13 @@ export default function Home() {
             >
               <div>
                 <h2 className="text-xl text-gray-800">{todo.text}</h2>
-                <p className="text-sm text-gray-600">Created by: {todo.creator}</p>
+                <p className="text-sm text-gray-600">
+                  Created by: {todo.creator}
+                </p>
                 {todo.status && (
-                  <p className="text-sm text-gray-600">Marked as done by: {todo.markedBy}</p>
+                  <p className="text-sm text-gray-600">
+                    Marked as done by: {todo.markedBy}
+                  </p>
                 )}
               </div>
               <div className="flex items-center space-x-2">
@@ -240,6 +255,12 @@ export default function Home() {
           </div>
         )}
       </div>
+      <button
+          onClick={handleLogout}
+          className=" py-2 px-5 font-semibold text-white bg-red-500 rounded-lg hover:bg-red-600 fixed bottom-6 right-24"
+        >
+          Log Out
+        </button>
       <button
         onClick={() => setShowModal(true)}
         className="fixed bottom-6 right-6 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 transition duration-300"

@@ -1,10 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../store/useAuthStore';
 import Link from 'next/link';
 import Head from 'next/head';
+import dynamic from 'next/dynamic';
+
+// Dynamically import ToastContainer with ssr: false
+const ToastContainer = dynamic(() => import('react-toastify').then(mod => mod.ToastContainer), {
+  ssr: false
+});
+import 'react-toastify/dist/ReactToastify.css'; 
+import { toast } from 'react-toastify';
 
 export default function Register() {
   const [name, setName] = useState('');
@@ -30,10 +38,14 @@ export default function Register() {
         throw new Error(data.error || 'Registration failed');
       }
 
-      login(data.token);
-      router.push('/login');
+      login(data.token);  // Save token to Zustand store
+      toast.success('Registration successful! Redirecting to login...');  // Show success toast
+      setTimeout(() => {
+        router.push('/login');  // Redirect to the dashboard after successful registration
+      }, 2000);  // Delay redirection to allow toast to be visible
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message);  // Show error toast
     }
   };
 
@@ -83,6 +95,7 @@ export default function Register() {
           </div>
         </div>
       </div>
+      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
     </>
   );
 }
